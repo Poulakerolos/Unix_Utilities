@@ -12,5 +12,5 @@ Copies a file. Uses `open()`, `read()`, `write()`, `close()`.
 ## mv.c
 Copies a file then deletes the original. Uses `open()`, `read()`, `write()`, `close()`, `unlink()`.
 
-## femtoshellfinal.c
+## femtoshell.c
 a shell that uses 2 commands : echo and exit
