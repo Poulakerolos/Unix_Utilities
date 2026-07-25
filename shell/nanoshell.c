@@ -6,6 +6,14 @@
 #define yellow_color "\033[33m"
 #define reset_color  "\033[0m"
 //block1:take user input {each word is separated form the other by one space}
+
+int envsize = 100;
+int locsize = 100;
+char **envar = NULL;
+char **enval = NULL;
+char **locvar = NULL;
+char **locval = NULL;
+int lenenv = 0, lenloc = 0;
 char *
 readshell ()
 {
@@ -20,7 +28,7 @@ readshell ()
 	  free (buf);
 	  return 0;
 	}
-      if (arraysize < length + 1)
+      if (arraysize <= length + 1)
 	{
 	  arraysize *= 2;
 	  char *temp = realloc (buf, arraysize);
@@ -89,7 +97,7 @@ tokenize (char *input)
   int argc = 0, pos = 0;
   while (input[pos] != '\0')
     {
-      if (argc > maxTokens - 1)
+      if (argc >= maxTokens - 1)
 	{
 	  maxTokens *= 2;
 	  char **temp = realloc (tokens, sizeof (char *) * maxTokens);
@@ -119,14 +127,6 @@ freetokens (char **tokens)
   free (tokens);
 }
 
-int envsize = 100;
-int locsize = 100;
-char **envar = NULL;
-char **enval = NULL;
-char **locvar = NULL;
-char **locval = NULL;
-int lenenv = 0, lenloc = 0;
-
 void
 store_variable (char *argv0, char *argv1, char *argv2, char *argv3)
 {
@@ -144,6 +144,15 @@ store_variable (char *argv0, char *argv1, char *argv2, char *argv3)
     }
   if (strcmp (argv0, "export") == 0 && argv1 && argv2 && argv3)
     {
+      for (int i = 0; i < lenenv; i++)
+	{
+	  if (strcmp (envar[i], argv1) == 0)
+	    {
+	      free (enval[i]);
+	      enval[i] = strdup (argv3);
+	      return;
+	    }
+	}
       //strdup(char*s)creates a duplicate of what is in s and returns a pointer to where that duplicate is stored
       envar[lenenv] = strdup (argv1);
       enval[lenenv] = strdup (argv3);
@@ -154,6 +163,15 @@ store_variable (char *argv0, char *argv1, char *argv2, char *argv3)
     }
   else if (argv0 && argv1 && argv2)
     {
+      for (int i = 0; i < lenloc; i++)
+	{
+	  if (strcmp (locvar[i], argv0) == 0)
+	    {
+	      free (locval[i]);
+	      locval[i] = strdup (argv2);
+	      return;
+	    }
+	}
       locvar[lenloc] = strdup (argv0);
       locval[lenloc] = strdup (argv2);
       lenloc++;
@@ -163,25 +181,54 @@ store_variable (char *argv0, char *argv1, char *argv2, char *argv3)
     }
   else
     {
-      printf ("local variables should take the form:variable = value\n");
-      printf
-	("environment variables should take the form:export varable = value\n");
+      printf ("local variables should take the form:variable=value\n");
+      printf("environment variables should take the form:export varable=value\n");
       return;
     }
 
 }
 
-int
-searchdollar (char **argv)
+void
+extend_tokens (char **argv)
 {
-  int i = 0;
-  for (; argv[i]; i++)
-    if (strcmp (argv[i], "$") == 0)
-      {
-	i++;
-	return i;
-      }
-  return 0;
+  for (int i = 0; argv[i]; i++)
+    {
+      if (strchr (argv[i], '$') != NULL)
+	{
+	  int found = 0;
+	  char *buf = strchr (argv[i], '$') + 1;
+	  for (int j = 0; envar[j]; j++)
+	    {
+	      if (strcmp (buf, envar[j]) == 0)
+		{
+		  found = 1;
+		  free (argv[i]);
+		  argv[i] = strdup (enval[j]);
+		  break;
+
+		}
+	    }
+	  if (!found)
+	    {
+	      for (int j = 0; locvar[j]; j++)
+		{
+
+		  if (strcmp (buf, locvar[j]) == 0)
+		    {
+		      found = 1;
+		      free (argv[i]);
+		      argv[i] = strdup (locval[j]);
+		      break;
+		    }
+		}
+	    }
+	  if (!found)
+	    {
+	      free (argv[i]);
+	      argv[i] = strdup (" ");
+	    }
+	}
+    }
 }
 
 int
@@ -197,7 +244,8 @@ nanoshell_main ()
       return 0;
     }
   char **argv = tokenize (input);
-  int variableindex = searchdollar (argv);
+  extend_tokens(argv);//search for $ replace variable after it with its value if found ,if the variable is not found 
+		      //replace it with space " "
   if (argv == NULL || argv[0] == NULL)
     {
       freetokens (argv);
@@ -209,28 +257,57 @@ nanoshell_main ()
       goto terminate;
     }
   else if (strcmp (argv[0], "cd") == 0)
-    {
-      int value = chdir (argv[1]);
+    {	char*home="/home";
+	    int value;
+       if(argv[1]==NULL){
+	       printf("redirecting to home\n");
+		value=chdir(home) ; 
+		      }
+	    else{
+       value = chdir (argv[1]);
+	    }
       if (value == 0)
 	{
+		free(input);
+		freetokens(argv);
 	  return 1;
 	}
       else
-	return 0;
+	{free(input);
+		freetokens(argv);
+	  printf ("enter a valid path\n");
+	  return 1;
+	}
     }
-  else if ((argv[0] && strchr (argv[0], '=') != 0)
-	   || (argv[1] && strchr (argv[1], '=') != 0))
+  else if(argv[0]&&strcmp(argv[0],"export")==0&&argv[1]==NULL){
+  for(int i=0;i<lenenv;i++)
+  printf("%s=%s\n",envar[i],enval[i]);
+  freetokens(argv);
+  free(input);
+  return 1;
+  
+  }
+  else if ((argv[0] && strchr (argv[0], '=') != NULL)
+	   || ((strcmp (argv[0], "export") == 0) && argv[1]
+	       && strchr (argv[1], '=') != NULL))
     {
-	    char*loc=NULL,*env=NULL;
-	    if(!argv[1]){
-      loc = strchr (argv[0], '=');}
-	    else if(argv[1]){
-      env = strchr (argv[1], '=');}
+      char *loc = NULL, *env = NULL;
+      if (!argv[1])
+	{
+	  loc = strchr (argv[0], '=');
+	}
+      else if (argv[1])
+	{
+	  env = strchr (argv[1], '=');
+	}
       if (loc != NULL)
 	{
 	  *loc = ' ';
 	  char **newtoken = tokenize (argv[0]);
 	  store_variable (newtoken[0], "=", newtoken[1], NULL);
+	 freetokens(argv);
+	 freetokens(newtoken);
+	 free(input);
 	  return 1;
 	}
       else if (env != NULL)
@@ -239,43 +316,14 @@ nanoshell_main ()
 	  char **newtoken = tokenize (argv[1]);
 
 	  store_variable (argv[0], newtoken[0], "=", newtoken[1]);
+	 freetokens(argv);
+	 freetokens(newtoken);
+	 free(input);
 	  return 1;
 	}
       else
 	{
 	  printf ("local variables should take the form:variable=value\n");
-	  return 1;
-	}
-    }
-  else if (variableindex)
-    {
-      int found = 0;
-      for (int i = 0; envar[i]; i++)
-	{
-	  if (strcmp (envar[i], argv[variableindex]) == 0)
-	    {
-	      printf ("%s\n", enval[i]);
-	      argv[variableindex] = enval[i];
-	      found = 1;
-	      return 1;
-	    }
-	}
-      if (!found)
-	{
-	  for (int j = 0; locvar[j]; j++)
-	    {
-	      if (strcmp (locvar[j], argv[variableindex]) == 0)
-		{
-		  printf ("%s\n", locval[j]);
-		  argv[variableindex] = locval[j];
-		  found = 1;
-		  return 1;
-		}
-	    }
-	}
-      if (!found)
-	{
-	  printf ("your variable is not found\n");
 	  return 1;
 	}
     }
@@ -327,11 +375,6 @@ main ()
   envar[0] = NULL;
   locvar[0] = NULL;
   locval[0] = NULL;
-  int x = 1;
-  while (x)
-    {
-      x = nanoshell_main ();
-    }
-  printf ("poula kerolos \n");
+  while (nanoshell_main ());
   return 0;
 }
