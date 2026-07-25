@@ -195,11 +195,13 @@ picoshell_main ()
 	  free (input);
 	  return 1;
 	}
-      else
+      else{
+	       freetokens(argv);
+    free(input);
 	      printf("error\n");
 	return 1;
     }
-    
+    }
   if (strcmp (argv[0], "echo") == 0)
     {
       echotext (argv);
@@ -229,7 +231,6 @@ picoshell_main ()
       free (input);
       freetokens (argv);
       exit (1);
-      return 2;
     }
   else
     {
