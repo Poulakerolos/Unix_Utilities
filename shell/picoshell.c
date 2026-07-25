@@ -134,6 +134,7 @@ int picoshell_main()
     printf("error: undefined input \n");
     free(input);
     freetokens(argv);
+		exit(1);
     return 2;
     }
     else{
